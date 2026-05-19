@@ -10,7 +10,6 @@
 
             <div class="hero-pills">
               <span class="hero-pill">{{ summary.totalGoals }} {{ copy.goalsLower }}</span>
-              <span class="hero-pill">{{ summary.totalAssists }} {{ copy.assistsLower }}</span>
               <span class="hero-pill">{{ summary.totalMatches }} {{ copy.matchesLower }}</span>
               <span class="hero-pill accent">{{ summary.avgAttendance }}% {{ copy.attendanceLower }}</span>
             </div>
@@ -34,11 +33,6 @@
             <span class="summary-label">{{ copy.topScorer }}</span>
             <strong>{{ topScorer ? fullName(topScorer) : copy.noData }}</strong>
             <p>{{ topScorer ? copy.topScorerNote(topScorer.goals ?? topScorer.stats?.goals ?? 0) : copy.topScorerEmpty }}</p>
-          </div>
-          <div class="summary-card soft">
-            <span class="summary-label">{{ copy.topCreator }}</span>
-            <strong>{{ topCreator ? fullName(topCreator) : copy.noData }}</strong>
-            <p>{{ topCreator ? copy.topCreatorNote(topCreator.assists ?? topCreator.stats?.assists ?? 0) : copy.topCreatorEmpty }}</p>
           </div>
         </div>
       </section>
@@ -422,7 +416,6 @@ const rankedPlayers = computed(() => [...players.value].sort((a, b) => {
 }))
 
 const topScorer = computed(() => summary.value.topScorers[0] || rankedPlayers.value[0] || null)
-const topCreator = computed(() => summary.value.topAssists[0] || null)
 
 const performanceLeaders = computed(() => {
   return [...players.value]
@@ -506,11 +499,6 @@ const headlineMetrics = computed(() => [
     label: copy.value.goals,
     value: summary.value.totalGoals,
     note: `${perPlayer(summary.value.totalGoals)} ${copy.value.perPlayer}`
-  },
-  {
-    label: copy.value.assists,
-    value: summary.value.totalAssists,
-    note: `${perPlayer(summary.value.totalAssists)} ${copy.value.perPlayer}`
   },
   {
     label: copy.value.matches,

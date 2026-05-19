@@ -13,7 +13,6 @@
             >
               <img v-if="team.logo" :src="team.logo" :alt="team.name" class="team-logo-image" />
               <div v-else class="logo-fallback">{{ teamInitials }}</div>
-              <span v-if="isCoach" class="logo-edit-badge">{{ copy.updateLogo }}</span>
             </button>
 
             <div v-if="isCoach" class="logo-actions">
@@ -217,7 +216,6 @@ import {
 
 const DASHBOARD_COPY = {
   en: {
-    updateLogo: 'Update logo',
     changeLogo: 'Change logo',
     removeLogo: 'Remove logo',
     eyebrow: 'Team dashboard',
@@ -301,7 +299,6 @@ const DASHBOARD_COPY = {
     }
   },
   lv: {
-    updateLogo: 'Atjaunināt logotipu',
     changeLogo: 'Mainīt logotipu',
     removeLogo: 'Noņemt logotipu',
     eyebrow: 'Komandas panelis',
@@ -484,11 +481,6 @@ const headlineMetrics = computed(() => [
     label: copy.value.goals,
     value: summary.value.totalGoals,
     note: `${perPlayer(summary.value.totalGoals)} ${copy.value.perPlayer}`
-  },
-  {
-    label: copy.value.assists,
-    value: summary.value.totalAssists,
-    note: `${perPlayer(summary.value.totalAssists)} ${copy.value.perPlayer}`
   },
   {
     label: copy.value.matches,
@@ -773,15 +765,6 @@ html.dark-mode .team-dashboard {
   background: linear-gradient(135deg, var(--team-accent-soft), transparent);
 }
 
-.logo-edit-badge {
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: 0.65rem 0.8rem;
-  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
-  color: white;
-  font-size: 0.8rem;
-}
-
 .logo-actions {
   display: flex;
   flex-direction: column;
@@ -962,7 +945,12 @@ html.dark-mode .hero-button.danger {
 }
 
 .metrics-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  justify-content: center;
+  max-width: 860px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
 }
 
 .section-grid {

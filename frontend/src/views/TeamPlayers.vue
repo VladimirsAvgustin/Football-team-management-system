@@ -21,7 +21,6 @@
             <div class="hero-pills">
               <span class="hero-pill strong">{{ copy.playersCount(players.length) }}</span>
               <span class="hero-pill">{{ totalGoals }} {{ copy.goalsLower }}</span>
-              <span class="hero-pill">{{ totalAssists }} {{ copy.assistsLower }}</span>
               <span v-if="isCoach" class="hero-pill accent">
                 {{ isMainCoach ? copy.mainCoachMode : copy.assistantCoachMode }}
               </span>
@@ -46,11 +45,6 @@
             <span class="summary-label">{{ copy.topScorer }}</span>
             <strong>{{ topScorer ? fullName(topScorer) : copy.noData }}</strong>
             <p>{{ topScorer ? copy.topScorerNote(topScorer.stats.goals) : copy.topScorerEmpty }}</p>
-          </div>
-          <div class="summary-card soft">
-            <span class="summary-label">{{ copy.topCreator }}</span>
-            <strong>{{ topCreator ? fullName(topCreator) : copy.noData }}</strong>
-            <p>{{ topCreator ? copy.topCreatorNote(topCreator.stats.assists) : copy.topCreatorEmpty }}</p>
           </div>
         </div>
       </section>
@@ -482,7 +476,6 @@ const emptyStateDescription = computed(() => (
 ))
 
 const totalGoals = computed(() => players.value.reduce((sum, player) => sum + (player.stats?.goals || 0), 0))
-const totalAssists = computed(() => players.value.reduce((sum, player) => sum + (player.stats?.assists || 0), 0))
 const totalYellowCards = computed(() => players.value.reduce((sum, player) => sum + (player.stats?.yellow_cards || 0), 0))
 const totalRedCards = computed(() => players.value.reduce((sum, player) => sum + (player.stats?.red_cards || 0), 0))
 const averageMatches = computed(() => {
@@ -492,7 +485,6 @@ const averageMatches = computed(() => {
 })
 
 const topScorer = computed(() => [...players.value].sort((a, b) => b.stats.goals - a.stats.goals)[0] || null)
-const topCreator = computed(() => [...players.value].sort((a, b) => b.stats.assists - a.stats.assists)[0] || null)
 
 const playerImpact = (player) => (
   (player.stats?.goals || 0) * 4 +

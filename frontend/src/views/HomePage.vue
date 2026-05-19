@@ -353,6 +353,7 @@ const HOME_CONTENT = {
       loading: 'Loading your workspace...',
       loadError: 'Some sections could not be refreshed, but the main navigation is ready to use.',
       roles: {
+        admin: 'Admin',
         coach: 'Coach',
         player: 'Player',
         member: 'Member'
@@ -490,6 +491,7 @@ const HOME_CONTENT = {
       loading: 'Ielādējam jūsu darba vidi...',
       loadError: 'Dažas sadaļas neizdevās atjaunot, bet galvenā navigācija jau ir gatava lietošanai.',
       roles: {
+        admin: 'Administrators',
         coach: 'Treneris',
         player: 'Spēlētājs',
         member: 'Lietotājs'
@@ -652,6 +654,7 @@ const heroDescription = computed(() => {
 })
 
 const roleLabel = computed(() => {
+  if (role.value === 'admin') return homeCopy.value.member.roles.admin
   if (role.value === 'coach') return homeCopy.value.member.roles.coach
   if (role.value === 'player') return homeCopy.value.member.roles.player
   return homeCopy.value.member.roles.member
