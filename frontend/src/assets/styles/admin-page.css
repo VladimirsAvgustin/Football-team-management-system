@@ -44,6 +44,12 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  align-items: center;
+  text-align: center;
+}
+
+.admin-page .admin-side-label {
+  display: none;
 }
 
 .admin-page .admin-hero-copy h1 {
@@ -488,13 +494,13 @@
 }
 
 .admin-page .entity-cell {
-  min-width: 190px;
+  min-width: 130px;
 }
 
 .admin-page .entity-chip {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0;
   min-width: 0;
 }
 

@@ -12,8 +12,6 @@ const router = useRouter()
 
 const loading = ref(true)
 const team = ref(null)
-const showEmail = ref(false)
-const showTeamCode = ref(false)
 const passwordLoading = ref(false)
 const passwordMessage = ref('')
 const passwordError = ref('')
@@ -151,20 +149,14 @@ const maskedEmail = computed(() => {
   const email = user.value?.email
   if (!email || !email.includes('@')) return profileCopy.value.hidden
 
-  if (showEmail.value) return email
-
-  const [name, domain] = email.split('@')
-  const safeName = `${name.slice(0, 2)}${'*'.repeat(Math.max(name.length - 2, 4))}`
-  return `${safeName}@${domain}`
+  return email
 })
 
 const maskedTeamCode = computed(() => {
   const code = team.value?.team_code
   if (!code) return profileCopy.value.noTeamCode
 
-  if (showTeamCode.value) return code
-
-  return `${code.slice(0, 1)}${'*'.repeat(Math.max(code.length - 2, 4))}${code.slice(-1)}`
+  return code
 })
 
 const loadProfile = async () => {
@@ -318,7 +310,6 @@ const handleLeaveTeam = async () => {
     const result = await leaveCurrentTeam()
     await auth.fetchUser()
     team.value = null
-    showTeamCode.value = false
 
     window.alert(result.message || profileCopy.value.leaveSuccess)
     await router.push('/')
@@ -404,16 +395,12 @@ onMounted(() => {
               <span class="profile-row-label">{{ profileCopy.email }}</span>
               <strong>{{ maskedEmail }}</strong>
             </div>
-            <button type="button" class="profile-btn profile-btn--ghost" @click="showEmail = !showEmail">
-              {{ showEmail ? profileCopy.hide : profileCopy.show }}
-            </button>
           </article>
 
           <article class="profile-secure-row">
             <div class="profile-row-copy">
               <span class="profile-row-label">{{ profileCopy.password }}</span>
               <strong>********</strong>
-              <small>{{ profileCopy.passwordHidden }}</small>
             </div>
             <button
               type="button"
@@ -430,14 +417,6 @@ onMounted(() => {
               <span class="profile-row-label">{{ profileCopy.teamCode }}</span>
               <strong>{{ maskedTeamCode }}</strong>
             </div>
-            <button
-              type="button"
-              class="profile-btn profile-btn--ghost"
-              :disabled="!team?.team_code"
-              @click="showTeamCode = !showTeamCode"
-            >
-              {{ showTeamCode ? profileCopy.hide : profileCopy.show }}
-            </button>
           </article>
         </div>
 

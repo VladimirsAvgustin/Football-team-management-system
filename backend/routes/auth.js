@@ -2061,18 +2061,24 @@ router.get('/teams/:teamId/stats', (req, res) => {
           }
 
           db.get(`
-            SELECT 
-              COUNT(CASE WHEN a.status = 'present' THEN 1 END) * 100.0 / 
-              NULLIF(COUNT(*), 0) as avgAttendance
-            FROM attendance a
-            INNER JOIN schedules s ON a.event_id = s.id
-            WHERE s.team_id = ? AND LOWER(s.event_type) = 'practice'
-          `, [teamId], (attendanceErr, attendanceResult) => {
+            SELECT
+              COUNT(DISTINCT u.id) as playerCount,
+              COUNT(DISTINCT s.id) as practiceCount,
+              COALESCE(SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END), 0) as presentCount
+            FROM users u
+            INNER JOIN schedules s ON s.team_id = ? AND LOWER(s.event_type) = 'practice'
+            LEFT JOIN attendance a ON a.user_id = u.id AND a.event_id = s.id
+            WHERE u.team_id = ? AND LOWER(u.role) = 'player'
+          `, [teamId, teamId], (attendanceErr, attendanceResult) => {
             if (attendanceErr) {
               console.error('Error getting attendance:', attendanceErr);
             }
 
             const safePlayers = Array.isArray(players) ? players : [];
+            const attendanceSlots = (Number(attendanceResult?.playerCount) || 0) * (Number(attendanceResult?.practiceCount) || 0);
+            const avgAttendance = attendanceSlots > 0
+              ? Math.round(((Number(attendanceResult?.presentCount) || 0) / attendanceSlots) * 100)
+              : 0;
 
             const stats = {
               totalPlayers: safePlayers.length,
@@ -2081,9 +2087,7 @@ router.get('/teams/:teamId/stats', (req, res) => {
               totalAssists: safePlayers.reduce((sum, player) => sum + (Number(player.assists) || 0), 0),
               totalYellowCards: safePlayers.reduce((sum, player) => sum + (Number(player.yellow_cards) || 0), 0),
               totalRedCards: safePlayers.reduce((sum, player) => sum + (Number(player.red_cards) || 0), 0),
-              avgAttendance: attendanceResult?.avgAttendance
-                ? Math.round(attendanceResult.avgAttendance)
-                : 0,
+              avgAttendance,
               topScorers: safePlayers
                 .filter((player) => (Number(player.goals) || 0) > 0)
                 .sort((a, b) => (Number(b.goals) || 0) - (Number(a.goals) || 0))

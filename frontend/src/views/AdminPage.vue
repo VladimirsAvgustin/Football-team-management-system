@@ -11,12 +11,16 @@
             <span class="admin-pill">{{ $t('admin.assignedUsersCount', { count: assignedUsersCount }) }}</span>
             <span class="admin-pill accent">{{ $t('admin.unsavedChangesCount', { count: totalDirtyCount }) }}</span>
           </div>
+
+          <div class="admin-side-label">
+            <span class="side-label">{{ $t('admin.signedInAs') }}</span>
+            <strong>{{ adminName }}</strong>
+          </div>
         </div>
 
         <div class="admin-side-card">
           <span class="side-label">{{ $t('admin.signedInAs') }}</span>
           <strong>{{ adminName }}</strong>
-          <p>{{ $t('admin.adminOnlyNoticeStart') }} <span>{{ $t('admin.adminRoleName') }}</span> {{ $t('admin.adminOnlyNoticeEnd') }}</p>
         </div>
       </section>
 
@@ -146,10 +150,6 @@
                 >
                   <td class="entity-cell">
                     <div class="entity-chip">
-                      <div class="table-avatar">
-                        {{ getInitials(user) }}
-                      </div>
-
                       <div class="entity-copy">
                         <strong>{{ displayName(user) }}</strong>
                         <span>#{{ user.id }}</span>

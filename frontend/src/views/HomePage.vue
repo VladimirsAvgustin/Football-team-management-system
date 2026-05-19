@@ -1864,10 +1864,25 @@ onBeforeUnmount(() => {
   .cta-banner {
     padding: 22px;
     border-radius: 24px;
+    grid-template-columns: 1fr;
+  }
+
+  .home-hero.member {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .hero-copy {
+    min-width: 0;
   }
 
   .hero-copy h1 {
     max-width: none;
+    font-size: clamp(1.5rem, 3vw, 2.5rem);
+  }
+
+  .hero-side {
+    min-width: 0;
   }
 
   .hero-actions,
@@ -1916,6 +1931,121 @@ onBeforeUnmount(() => {
 
   .member-overview-row strong {
     text-align: left;
+  }
+
+  .preview-card {
+    padding: 18px;
+  }
+
+  .member-focus {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--home-border);
+  }
+}
+
+@media (max-width: 480px) {
+  .home-page {
+    padding: 12px 12px 24px;
+  }
+
+  .home-shell {
+    max-width: 100%;
+  }
+
+  .home-hero,
+  .content-section,
+  .panel,
+  .cta-banner {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .home-wordmark span {
+    font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(1.3rem, 2.8vw, 2rem);
+    line-height: 1.1;
+  }
+
+  .home-hero.guest .hero-copy h1 {
+    font-size: clamp(1.25rem, 2.8vw, 1.9rem);
+  }
+
+  .hero-description {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-top: 14px;
+  }
+
+  .hero-button {
+    min-height: 42px;
+    padding: 0 14px;
+    font-size: 0.95rem;
+  }
+
+  .preview-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .preview-copy strong,
+  .preview-card strong {
+    font-size: 1.25rem;
+    margin-top: 5px;
+  }
+
+  .member-overview {
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .member-overview-row {
+    padding: 10px 12px;
+    border-radius: 14px;
+    gap: 12px;
+    font-size: 0.9rem;
+  }
+
+  .member-focus {
+    margin-top: 16px;
+    padding-top: 16px;
+  }
+
+  .member-focus .preview-label {
+    font-size: 0.72rem;
+    margin-bottom: 4px;
+  }
+
+  .section-head {
+    margin-bottom: 14px;
+  }
+
+  .section-head h2 {
+    font-size: clamp(1.3rem, 3.2vw, 1.8rem);
+  }
+
+  .capability-grid {
+    gap: 12px;
+  }
+
+  .capability-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .dashboard-grid,
+  .action-grid {
+    gap: 10px;
+  }
+
+  .event-card,
+  .activity-card {
+    padding: 14px;
+    border-radius: 14px;
+    gap: 12px;
   }
 }
 

@@ -34,6 +34,11 @@
             <strong>{{ topScorer ? fullName(topScorer) : copy.noData }}</strong>
             <p>{{ topScorer ? copy.topScorerNote(topScorer.goals ?? topScorer.stats?.goals ?? 0) : copy.topScorerEmpty }}</p>
           </div>
+          <div class="summary-card">
+            <span class="summary-label">{{ copy.topCreator }}</span>
+            <strong>{{ topCreator ? fullName(topCreator) : copy.noData }}</strong>
+            <p>{{ topCreator ? copy.topCreatorNote(topCreator.assists ?? topCreator.stats?.assists ?? 0) : copy.topCreatorEmpty }}</p>
+          </div>
         </div>
       </section>
 
@@ -416,6 +421,21 @@ const rankedPlayers = computed(() => [...players.value].sort((a, b) => {
 }))
 
 const topScorer = computed(() => summary.value.topScorers[0] || rankedPlayers.value[0] || null)
+const topCreator = computed(() => {
+  return summary.value.topAssists[0] ||
+    [...players.value]
+      .filter((player) => (player.stats?.assists || 0) > 0)
+      .sort((a, b) => {
+        const assistsDiff = (b.stats?.assists || 0) - (a.stats?.assists || 0)
+        if (assistsDiff !== 0) return assistsDiff
+
+        const goalsDiff = (b.stats?.goals || 0) - (a.stats?.goals || 0)
+        if (goalsDiff !== 0) return goalsDiff
+
+        return fullName(a).localeCompare(fullName(b))
+      })[0] ||
+    null
+})
 
 const performanceLeaders = computed(() => {
   return [...players.value]
@@ -716,7 +736,7 @@ html.dark-mode .statistics-page {
 
 .statistics-hero {
   display: grid;
-  grid-template-columns: 1.25fr 320px;
+  grid-template-columns: minmax(0, 1fr) minmax(520px, 600px);
   gap: 1rem;
   padding: 1.5rem;
   border-radius: 28px;
@@ -789,8 +809,9 @@ html.dark-mode .statistics-page {
 }
 
 .hero-side {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
   gap: 1rem;
 }
 
@@ -820,7 +841,8 @@ html.dark-mode .statistics-page {
 }
 
 .headline-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(240px, 267px));
+  justify-content: center;
 }
 
 .chart-grid {
@@ -1216,7 +1238,7 @@ html.dark-mode .statistics-page {
   }
 
   .hero-side {
-    flex-direction: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .headline-grid {
@@ -1238,7 +1260,7 @@ html.dark-mode .statistics-page {
   }
 
   .hero-side {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .headline-grid {

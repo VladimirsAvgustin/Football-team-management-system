@@ -104,7 +104,10 @@
             >
               <div class="leader-rank">#{{ index + 1 }}</div>
               <div class="leader-main">
-                <div class="leader-avatar">{{ getInitials(fullName(player)) }}</div>
+                <div class="leader-avatar">
+                  <img v-if="player.avatar" :src="player.avatar" :alt="fullName(player)" class="leader-avatar-image" />
+                  <template v-else>{{ getInitials(fullName(player)) }}</template>
+                </div>
                 <div>
                   <h3>{{ fullName(player) }}</h3>
                 </div>
@@ -259,8 +262,7 @@ const DASHBOARD_COPY = {
     waitingCount: (count) => `${count} ${count === 1 ? 'waiting' : 'waiting'}`,
     trackedPlayers: (count) => `${count} ${count === 1 ? 'player tracked' : 'players tracked'}`,
     eventCountText: (count) => `${count} ${count === 1 ? 'upcoming event' : 'upcoming events'}`,
-    scheduledEvents: (count) => count === 1 ? '1 upcoming event planned' : `${count} upcoming events planned`,
-    attendanceOverviewText: (eventText) => `${eventText}.`,
+    attendanceOverviewText: 'Calculated from player attendance marks for practices.',
     quickLinks: {
       players: {
         label: 'Players',
@@ -342,8 +344,7 @@ const DASHBOARD_COPY = {
     waitingCount: (count) => `${count} gaida`,
     trackedPlayers: (count) => `${count} spēlētāji uzskaitē`,
     eventCountText: (count) => count === 1 ? '1 gaidāms notikums' : `${count} gaidāmie notikumi`,
-    scheduledEvents: (count) => count === 1 ? 'Iepl\u0101nots 1 gaid\u0101ms notikums' : `Iepl\u0101noti ${count} gaid\u0101mi notikumi`,
-    attendanceOverviewText: (eventText) => `${eventText}.`,
+    attendanceOverviewText: 'Aprēķināts pēc spēlētāju treniņu apmeklējuma atzīmēm.',
     quickLinks: {
       players: {
         label: 'Spēlētāji',
@@ -471,10 +472,7 @@ const nextEventMeta = computed(() => {
 
 const attendanceOverviewValue = computed(() => `${summary.value.avgAttendance || 0}%`)
 
-const attendanceOverviewText = computed(() => {
-  const eventText = copy.value.scheduledEvents(upcomingEvents.value.length)
-  return copy.value.attendanceOverviewText(eventText)
-})
+const attendanceOverviewText = computed(() => copy.value.attendanceOverviewText)
 
 const headlineMetrics = computed(() => [
   {
@@ -1127,6 +1125,15 @@ html.dark-mode .hero-button.danger {
   align-items: center;
   justify-content: center;
   font-weight: 800;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.leader-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .leader-stats {
