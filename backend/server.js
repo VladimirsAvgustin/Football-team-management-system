@@ -198,13 +198,131 @@ const db = new sqlite3.Database(dbPath, (err) => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         event_id INTEGER NOT NULL,
-        status TEXT CHECK(status IN ('present', 'absent', 'late', 'excused')) DEFAULT 'absent',
+        status TEXT CHECK(status IN ('present', 'absent')) DEFAULT 'absent',
         checked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         notes TEXT,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (event_id) REFERENCES schedules(id) ON DELETE CASCADE,
         UNIQUE(user_id, event_id)
       )`);
+      db.run(`CREATE TABLE IF NOT EXISTS game_lineups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        selected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES schedules(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(event_id, user_id)
+      )`);
+      db.run('CREATE INDEX IF NOT EXISTS idx_game_lineups_event ON game_lineups(event_id)');
+      db.run('CREATE INDEX IF NOT EXISTS idx_game_lineups_user ON game_lineups(user_id)');
+      db.all(`PRAGMA table_info(game_lineups)`, (lineupInfoErr, columns = []) => {
+        if (lineupInfoErr) {
+          console.error('Error reading game_lineups schema:', lineupInfoErr.message);
+          return;
+        }
+
+        const columnNames = new Set(columns.map((column) => column.name));
+        const expectedColumns = ['id', 'event_id', 'user_id', 'selected_at'];
+        const hasOnlyLineupColumns = columns.length === expectedColumns.length &&
+          expectedColumns.every((columnName) => columnNames.has(columnName));
+
+        if (hasOnlyLineupColumns) {
+          return;
+        }
+
+        const migrateOldResponsesSql = columnNames.has('status')
+          ? `
+            INSERT OR IGNORE INTO attendance (user_id, event_id, status, notes, checked_at)
+            SELECT
+              gl.user_id,
+              gl.event_id,
+              CASE
+                WHEN gl.status = 'confirmed' THEN 'present'
+                WHEN gl.status = 'declined' THEN 'excused'
+                ELSE 'absent'
+              END,
+              ${columnNames.has('notes') ? 'gl.notes' : 'NULL'},
+              ${columnNames.has('responded_at') ? 'COALESCE(gl.responded_at, CURRENT_TIMESTAMP)' : 'CURRENT_TIMESTAMP'}
+            FROM game_lineups gl
+            INNER JOIN schedules s ON s.id = gl.event_id AND LOWER(s.event_type) = 'game'
+            WHERE gl.status IN ('confirmed', 'declined')
+          `
+          : `SELECT 1`;
+
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION');
+          db.run(migrateOldResponsesSql, (migrateLineupErr) => {
+            if (migrateLineupErr) {
+              db.run('ROLLBACK');
+              console.error('Error migrating game lineup responses:', migrateLineupErr.message);
+              return;
+            }
+
+            db.run(`DROP TABLE IF EXISTS game_lineups_clean`, (dropCleanErr) => {
+              if (dropCleanErr) {
+                db.run('ROLLBACK');
+                console.error('Error preparing game_lineups cleanup:', dropCleanErr.message);
+                return;
+              }
+
+              db.run(`
+                CREATE TABLE game_lineups_clean (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  event_id INTEGER NOT NULL,
+                  user_id INTEGER NOT NULL,
+                  selected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  FOREIGN KEY (event_id) REFERENCES schedules(id) ON DELETE CASCADE,
+                  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                  UNIQUE(event_id, user_id)
+                )
+              `, (createCleanErr) => {
+                if (createCleanErr) {
+                  db.run('ROLLBACK');
+                  console.error('Error creating clean game_lineups table:', createCleanErr.message);
+                  return;
+                }
+
+                db.run(`
+                  INSERT OR IGNORE INTO game_lineups_clean (id, event_id, user_id, selected_at)
+                  SELECT id, event_id, user_id, COALESCE(selected_at, CURRENT_TIMESTAMP)
+                  FROM game_lineups
+                `, (copyLineupsErr) => {
+                  if (copyLineupsErr) {
+                    db.run('ROLLBACK');
+                    console.error('Error copying game lineups:', copyLineupsErr.message);
+                    return;
+                  }
+
+                  db.run(`DROP TABLE game_lineups`, (dropOldErr) => {
+                    if (dropOldErr) {
+                      db.run('ROLLBACK');
+                      console.error('Error replacing game_lineups table:', dropOldErr.message);
+                      return;
+                    }
+
+                    db.run(`ALTER TABLE game_lineups_clean RENAME TO game_lineups`, (renameErr) => {
+                      if (renameErr) {
+                        db.run('ROLLBACK');
+                        console.error('Error renaming clean game_lineups table:', renameErr.message);
+                        return;
+                      }
+
+                      db.run('CREATE INDEX IF NOT EXISTS idx_game_lineups_event ON game_lineups(event_id)');
+                      db.run('CREATE INDEX IF NOT EXISTS idx_game_lineups_user ON game_lineups(user_id)');
+                      db.run('COMMIT', (commitErr) => {
+                        if (commitErr) {
+                          console.error('Error committing game_lineups cleanup:', commitErr.message);
+                        }
+                      });
+                    });
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
       db.run(`CREATE TABLE IF NOT EXISTS chat_rooms (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         team_id INTEGER NOT NULL,

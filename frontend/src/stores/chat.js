@@ -85,7 +85,7 @@ export const useChatStore = defineStore('chat', {
     },
     
     unreadCount: (state) => {
-      // Calculate unread messages (you can extend this with read receipts)
+      // Calculate unread messages 
       return state.rooms.reduce((count, room) => count + (room.unread || 0), 0)
     }
   },

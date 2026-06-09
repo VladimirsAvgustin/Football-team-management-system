@@ -325,7 +325,7 @@
         
         <!-- Player's own attendance before event start -->
         <div v-if="isPracticeEvent(selectedEvent) && isPlayer && isEventUpcoming(selectedEvent)" class="attendance-section">
-          <h3> {{ $t('schedule.yourResponse') }}</h3>
+          <h3>{{ $t('schedule.yourResponse') }}</h3>
           <div class="attendance-choice">
             <button 
               @click="setMyAttendance('present')" 
@@ -352,7 +352,7 @@
 
         <!-- Show attendance status if event passed -->
         <div v-if="isPracticeEvent(selectedEvent) && isPlayer && !isEventUpcoming(selectedEvent)" class="attendance-section past">
-          <h3>📋 {{ $t('schedule.yourAttendance') }}</h3>
+          <h3>{{ $t('schedule.yourAttendance') }}</h3>
           <div class="attendance-result" :class="myAttendanceStatus || 'unmarked'">
             <span class="result-icon">{{ getStatusIcon(myAttendanceStatus) }}</span>
             <span class="result-text">{{ getStatusDisplayText(myAttendanceStatus) }}</span>
@@ -361,7 +361,7 @@
         
         <!-- Coach view: all player responses -->
         <div v-if="isPracticeEvent(selectedEvent) && isCoach" class="attendance-section coach">
-          <h3>👥 {{ $t('schedule.teamResponses') }}</h3>
+          <h3>{{ $t('schedule.teamResponses') }}</h3>
           <div class="attendance-stats-bar">
             <div class="stat-segment yes" :style="{ width: getAttendancePercent('present') + '%' }">
               <span v-if="attendanceSummary.present > 0">{{ attendanceSummary.present }}</span>
@@ -398,6 +398,122 @@
             </div>
           </div>
         </div>
+
+        <!-- Player's own game lineup response -->
+        <div v-if="isGameEvent(selectedEvent) && isPlayer && selectedLineupEntry && isEventUpcoming(selectedEvent)" class="attendance-section">
+          <h3>{{ $t('schedule.yourGameResponse') }}</h3>
+          <div class="attendance-choice">
+            <button
+              @click="setMyLineupResponse('confirmed')"
+              :class="{ active: selectedLineupEntry.status === 'confirmed' }"
+              class="attend-btn yes"
+            >
+              <span class="btn-icon">✓</span>
+              <span class="btn-text">{{ $t('schedule.gameWillPlay') }}</span>
+            </button>
+            <button
+              @click="openDeclineModal()"
+              :class="{ active: selectedLineupEntry.status === 'declined' }"
+              class="attend-btn no"
+            >
+              <span class="btn-icon">×</span>
+              <span class="btn-text">{{ $t('schedule.gameCantPlay') }}</span>
+            </button>
+          </div>
+          <div v-if="selectedLineupEntry.status === 'declined'" class="my-reason-card">
+            <span class="reason-icon"></span>
+            <span>{{ selectedLineupEntry.notes || $t('schedule.noReasonProvided') }}</span>
+          </div>
+        </div>
+
+        <div v-if="isGameEvent(selectedEvent) && isPlayer && selectedLineupEntry && !isEventUpcoming(selectedEvent)" class="attendance-section past">
+          <h3>{{ $t('schedule.yourGameResponse') }}</h3>
+          <div class="attendance-result" :class="selectedLineupEntry.status || 'selected'">
+            <span class="result-icon">{{ getLineupStatusIcon(selectedLineupEntry.status) }}</span>
+            <span class="result-text">{{ getLineupStatusText(selectedLineupEntry.status) }}</span>
+          </div>
+        </div>
+
+        <div v-if="isGameEvent(selectedEvent) && isPlayer && !selectedLineupEntry" class="attendance-section">
+          <h3>{{ $t('schedule.gameLineup') }}</h3>
+          <div class="lineup-empty-note">{{ $t('schedule.notInLineup') }}</div>
+        </div>
+
+        <!-- Coach view: game lineup -->
+        <div v-if="isGameEvent(selectedEvent) && isCoach" class="attendance-section coach lineup-section">
+          <div class="lineup-header">
+            <div>
+              <h3>{{ $t('schedule.gameLineup') }}</h3>
+              <p>{{ $t('schedule.lineupSelectedCount', { count: lineupEditIds.length }) }}</p>
+            </div>
+            <button type="button" class="lineup-save-btn" :disabled="lineupSaving" @click="saveGameLineup">
+              {{ lineupSaving ? $t('schedule.savingLineup') : $t('schedule.saveLineup') }}
+            </button>
+          </div>
+
+          <div v-if="lineupMessage" class="lineup-message">{{ lineupMessage }}</div>
+
+          <div class="lineup-builder">
+            <label
+              v-for="player in gameLineupList"
+              :key="player.user_id"
+              class="lineup-player-toggle"
+              :class="{ selected: isPlayerInLineupDraft(player.user_id) }"
+            >
+              <input
+                type="checkbox"
+                :checked="isPlayerInLineupDraft(player.user_id)"
+                @change="toggleLineupDraft(player.user_id)"
+              >
+              <span class="lineup-player-avatar">
+                <img v-if="player.avatar" :src="player.avatar" :alt="player.username" class="person-avatar-image">
+                <template v-else>{{ getInitials(player.username) }}</template>
+              </span>
+              <span class="lineup-player-name">{{ player.username }}</span>
+            </label>
+          </div>
+
+          <div v-if="selectedLineupPlayers.length" class="lineup-responses">
+            <div class="attendance-stats-bar">
+              <div class="stat-segment yes" :style="{ width: getLineupPercent('confirmed') + '%' }">
+                <span v-if="lineupSummary.confirmed > 0">{{ lineupSummary.confirmed }}</span>
+              </div>
+              <div class="stat-segment no" :style="{ width: getLineupPercent('declined') + '%' }">
+                <span v-if="lineupSummary.declined > 0">{{ lineupSummary.declined }}</span>
+              </div>
+              <div class="stat-segment pending" :style="{ width: getLineupPercent('selected') + '%' }">
+                <span v-if="lineupSummary.pending > 0">{{ lineupSummary.pending }}</span>
+              </div>
+            </div>
+            <div class="stats-legend">
+              <span class="legend-item yes">✓ {{ $t('schedule.gameConfirmed') }} ({{ lineupSummary.confirmed }})</span>
+              <span class="legend-item no">× {{ $t('schedule.gameDeclined') }} ({{ lineupSummary.declined }})</span>
+              <span class="legend-item pending">? {{ $t('schedule.noResponse') }} ({{ lineupSummary.pending }})</span>
+            </div>
+
+            <div class="attendees-grid">
+              <div v-for="player in sortedSelectedLineupPlayers" :key="player.user_id" class="attendee-card" :class="player.status || 'selected'">
+                <div class="attendee-avatar">
+                  <img v-if="player.avatar" :src="player.avatar" :alt="player.username" class="person-avatar-image">
+                  <template v-else>{{ getInitials(player.username) }}</template>
+                </div>
+                <div class="attendee-details">
+                  <div class="attendee-name">{{ player.username }}</div>
+                  <div class="attendee-status">{{ getLineupStatusText(player.status) }}</div>
+                </div>
+                <div class="status-indicator" :class="player.status || 'selected'">
+                  {{ getLineupStatusIcon(player.status) }}
+                </div>
+                <div v-if="player.notes" class="attendee-note">
+                  {{ player.notes }}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="lineup-empty-note">
+            {{ lineupEditIds.length ? $t('schedule.lineupDraftReady') : $t('schedule.noLineupSelected') }}
+          </div>
+        </div>
         
         <!-- Coach buttons -->
         <div v-if="isCoach" class="event-detail-actions">
@@ -414,10 +530,10 @@
     <!-- Decline attendance modal -->
     <div v-if="showDeclineModal" class="modal-overlay" @click.self="showDeclineModal = false">
       <div class="modal-content decline-modal">
-        <h3>{{ $t('schedule.whyCantAttend') }}</h3>
+        <h3>{{ declineModalTitle }}</h3>
         <textarea 
           v-model="declineReason"
-          :placeholder="$t('schedule.describeReason')"
+          :placeholder="declineModalPlaceholder"
           rows="4"
         ></textarea>
         <div class="modal-actions">
@@ -1009,12 +1125,26 @@ const declineReason = ref('')
 const myAttendanceStatus = ref(null)
 const myAttendanceNotes = ref('')
 
+const gameLineupList = ref([])
+const lineupEditIds = ref([])
+const lineupSaving = ref(false)
+const lineupMessage = ref('')
+
 const getEventDateTime = (event) => {
   if (!event?.event_date) return null
   return dayjs(`${event.event_date} ${event.event_time || '23:59'}`)
 }
 
 const isPracticeEvent = (event) => String(event?.event_type || '').toLowerCase() === 'practice'
+const isGameEvent = (event) => String(event?.event_type || '').toLowerCase() === 'game'
+
+const declineModalTitle = computed(() =>
+  isGameEvent(selectedEvent.value) ? t('schedule.whyCantPlay') : t('schedule.whyCantAttend')
+)
+
+const declineModalPlaceholder = computed(() =>
+  isGameEvent(selectedEvent.value) ? t('schedule.describeGameReason') : t('schedule.describeReason')
+)
 
 // Check if event is upcoming (can still RSVP)
 const isEventUpcoming = (event) => {
@@ -1153,6 +1283,152 @@ const sortedEventAttendanceList = computed(() =>
   })
 )
 
+const selectedLineupPlayers = computed(() =>
+  gameLineupList.value.filter((player) => Number(player.in_lineup) === 1)
+)
+
+const selectedLineupEntry = computed(() =>
+  selectedLineupPlayers.value.find((player) => Number(player.user_id) === Number(auth.user?.id)) || null
+)
+
+const lineupSummary = computed(() => {
+  const confirmed = selectedLineupPlayers.value.filter((player) => player.status === 'confirmed').length
+  const declined = selectedLineupPlayers.value.filter((player) => player.status === 'declined').length
+  const pending = selectedLineupPlayers.value.filter((player) => !player.status || player.status === 'selected').length
+
+  return { confirmed, declined, pending }
+})
+
+const getLineupSortGroup = (status) => {
+  if (status === 'confirmed') return 0
+  if (status === 'declined') return 1
+  return 2
+}
+
+const sortedSelectedLineupPlayers = computed(() =>
+  [...selectedLineupPlayers.value].sort((a, b) => {
+    const groupDiff = getLineupSortGroup(a.status) - getLineupSortGroup(b.status)
+
+    if (groupDiff !== 0) {
+      return groupDiff
+    }
+
+    return String(a.username || '').localeCompare(String(b.username || ''))
+  })
+)
+
+const isPlayerInLineupDraft = (playerId) =>
+  lineupEditIds.value.some((id) => Number(id) === Number(playerId))
+
+const toggleLineupDraft = (playerId) => {
+  if (isPlayerInLineupDraft(playerId)) {
+    lineupEditIds.value = lineupEditIds.value.filter((id) => Number(id) !== Number(playerId))
+    return
+  }
+
+  lineupEditIds.value = [...lineupEditIds.value, playerId]
+}
+
+const getLineupPercent = (type) => {
+  const total = selectedLineupPlayers.value.length
+  if (total === 0) return 0
+
+  const count = type === 'confirmed'
+    ? lineupSummary.value.confirmed
+    : type === 'declined'
+      ? lineupSummary.value.declined
+      : lineupSummary.value.pending
+
+  return Math.round((count / total) * 100)
+}
+
+const getLineupStatusText = (status) => {
+  const texts = {
+    confirmed: t('schedule.lineupConfirmed'),
+    declined: t('schedule.lineupDeclined'),
+    selected: t('schedule.awaitingResponse')
+  }
+
+  return texts[status] || texts.selected
+}
+
+const getLineupStatusIcon = (status) => {
+  const icons = {
+    confirmed: '✓',
+    declined: '×',
+    selected: '?'
+  }
+
+  return icons[status] || icons.selected
+}
+
+const fetchGameLineup = async (eventId) => {
+  if (!eventId) return
+
+  try {
+    const res = await axios.get(`/api/teams/${teamId.value}/events/${eventId}/lineup/full`)
+    const players = Array.isArray(res.data) ? res.data : []
+    const savedIds = players
+      .filter((player) => Number(player.in_lineup) === 1)
+      .map((player) => player.user_id)
+
+    gameLineupList.value = players
+    lineupMessage.value = ''
+
+    if (savedIds.length) {
+      lineupEditIds.value = savedIds
+      return
+    }
+
+    const suggestedRes = await axios.get(`/api/teams/${teamId.value}/events/${eventId}/lineup/suggested`)
+    const playerIds = Array.isArray(suggestedRes.data?.playerIds) ? suggestedRes.data.playerIds : []
+    const availableIds = new Set(players.map((player) => Number(player.user_id)))
+    lineupEditIds.value = playerIds.filter((id) => availableIds.has(Number(id)))
+
+    if (lineupEditIds.value.length) {
+      lineupMessage.value = t('schedule.previousLineupLoaded')
+    }
+  } catch (err) {
+    console.error('Error fetching game lineup:', err)
+  }
+}
+
+const saveGameLineup = async () => {
+  if (!selectedEvent.value || !isGameEvent(selectedEvent.value)) return
+
+  lineupSaving.value = true
+  lineupMessage.value = ''
+
+  try {
+    const res = await axios.post(`/api/teams/${teamId.value}/events/${selectedEvent.value.id}/lineup/bulk`, {
+      playerIds: lineupEditIds.value
+    })
+    gameLineupList.value = Array.isArray(res.data?.players) ? res.data.players : gameLineupList.value
+    lineupEditIds.value = selectedLineupPlayers.value.map((player) => player.user_id)
+    lineupMessage.value = t('schedule.lineupSaved')
+  } catch (err) {
+    console.error('Error saving game lineup:', err)
+    lineupMessage.value = err.response?.data?.error || t('schedule.lineupSaveError')
+  } finally {
+    lineupSaving.value = false
+  }
+}
+
+const setMyLineupResponse = async (status, notes = null) => {
+  if (!selectedEvent.value || !isGameEvent(selectedEvent.value)) return
+
+  try {
+    await axios.post(`/api/teams/${teamId.value}/events/${selectedEvent.value.id}/lineup/response`, {
+      user_id: auth.user.id,
+      status,
+      notes
+    })
+    await fetchGameLineup(selectedEvent.value.id)
+  } catch (err) {
+    console.error('Error setting lineup response:', err)
+  }
+}
+
 // Set my attendance (for players)
 const setMyAttendance = async (status) => {
   if (!selectedEvent.value) return
@@ -1182,6 +1458,13 @@ const submitDecline = async () => {
   if (!selectedEvent.value || !declineReason.value.trim()) return
   
   const notes = declineReason.value.trim()
+
+  if (isGameEvent(selectedEvent.value)) {
+    await setMyLineupResponse('declined', notes)
+    showDeclineModal.value = false
+    declineReason.value = ''
+    return
+  }
   
   try {
     await axios.post(`/api/teams/${teamId.value}/events/${selectedEvent.value.id}/attendance`, {
@@ -1211,7 +1494,21 @@ const fetchAttendanceStats = async () => {
 // Watch for selected event changes
 watch(selectedEvent, (newEvent) => {
   if (newEvent) {
-    fetchEventAttendance(newEvent.id)
+    if (isPracticeEvent(newEvent)) {
+      fetchEventAttendance(newEvent.id)
+    } else {
+      eventAttendanceList.value = []
+      myAttendanceStatus.value = null
+      myAttendanceNotes.value = ''
+    }
+
+    if (isGameEvent(newEvent)) {
+      fetchGameLineup(newEvent.id)
+    } else {
+      gameLineupList.value = []
+      lineupEditIds.value = []
+      lineupMessage.value = ''
+    }
   }
 })
 
@@ -2587,6 +2884,9 @@ onBeforeUnmount(() => {
 .attendance-result.present { background: #ecfdf5; color: #065f46; }
 .attendance-result.absent, .attendance-result.excused { background: #fef2f2; color: #991b1b; }
 .attendance-result.unmarked { background: #f3f4f6; color: #6b7280; }
+.attendance-result.confirmed { background: #ecfdf5; color: #065f46; }
+.attendance-result.declined { background: #fef2f2; color: #991b1b; }
+.attendance-result.selected { background: #f3f4f6; color: #6b7280; }
 
 .result-icon {
   font-size: 24px;
@@ -2657,6 +2957,9 @@ onBeforeUnmount(() => {
 .attendee-card.present { border-left-color: #10b981; }
 .attendee-card.absent, .attendee-card.excused { border-left-color: #ef4444; }
 .attendee-card.unmarked { border-left-color: #9ca3af; }
+.attendee-card.confirmed { border-left-color: #10b981; }
+.attendee-card.declined { border-left-color: #ef4444; }
+.attendee-card.selected { border-left-color: #9ca3af; }
 
 .attendee-card .attendee-avatar {
   width: 36px;
@@ -2698,6 +3001,121 @@ onBeforeUnmount(() => {
 .status-indicator.present { background: #d1fae5; color: #065f46; }
 .status-indicator.absent, .status-indicator.excused { background: #fee2e2; color: #991b1b; }
 .status-indicator.unmarked { background: #f3f4f6; color: #6b7280; }
+.status-indicator.confirmed { background: #d1fae5; color: #065f46; }
+.status-indicator.declined { background: #fee2e2; color: #991b1b; }
+.status-indicator.selected { background: #f3f4f6; color: #6b7280; }
+
+.lineup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lineup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.lineup-header h3 {
+  margin-bottom: 4px;
+}
+
+.lineup-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.lineup-save-btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 16px;
+  background: #0b72e7;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.lineup-save-btn:hover {
+  background: #095bb8;
+}
+
+.lineup-save-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.lineup-message,
+.lineup-empty-note {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+}
+
+.lineup-builder {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.lineup-player-toggle {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.lineup-player-toggle.selected {
+  border-color: #0b72e7;
+  background: #eff6ff;
+}
+
+.lineup-player-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #0b72e7;
+}
+
+.lineup-player-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0b72e7, #10b981);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lineup-player-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color, #111827);
+}
+
+.lineup-responses {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
 .attendee-note {
   grid-column: 1 / -1;
@@ -3345,6 +3763,11 @@ onBeforeUnmount(() => {
   color: #9ca3af;
 }
 
+.dark-mode .attendance-result.selected {
+  background: #2d2d2d;
+  color: #9ca3af;
+}
+
 .dark-mode .attendee-card {
   background: #2d2d2d;
 }
@@ -3356,6 +3779,23 @@ onBeforeUnmount(() => {
 .dark-mode .attendee-note {
   background: #3d3d3d;
   color: #9ca3af;
+}
+
+.dark-mode .lineup-header p {
+  color: #9ca3af;
+}
+
+.dark-mode .lineup-message,
+.dark-mode .lineup-empty-note,
+.dark-mode .lineup-player-toggle.selected {
+  background: rgba(11, 114, 231, 0.16);
+  border-color: rgba(111, 178, 255, 0.45);
+  color: #93c5fd;
+}
+
+.dark-mode .lineup-player-toggle {
+  background: #2d2d2d;
+  border-color: #3d3d3d;
 }
 
 .dark-mode .event-detail-actions {

@@ -2,6 +2,62 @@ const express = require('express');
 const router = express.Router();
 
 module.exports = (db) => {
+  const normalizePositiveInteger = (value) => {
+    const number = Number(value);
+    return Number.isInteger(number) && number > 0 ? number : null;
+  };
+
+  const getGameEvent = (teamId, eventId, callback) => {
+    db.get(
+      `SELECT id, team_id, event_date, event_time, event_type
+       FROM schedules
+       WHERE id = ? AND team_id = ?`,
+      [eventId, teamId],
+      (err, event) => {
+        if (err) {
+          return callback(err);
+        }
+
+        if (!event) {
+          return callback(null, null);
+        }
+
+        if (String(event.event_type || '').toLowerCase() !== 'game') {
+          return callback(null, false);
+        }
+
+        callback(null, event);
+      }
+    );
+  };
+
+  const fetchGameLineupRows = (teamId, eventId, callback) => {
+    db.all(`
+      SELECT
+        u.id as user_id,
+        u.name,
+        u.surname,
+        (u.name || ' ' || u.surname) as username,
+        u.email,
+        u.avatar,
+        CASE WHEN gl.id IS NULL THEN 0 ELSE 1 END as in_lineup,
+        CASE
+          WHEN gl.id IS NULL THEN NULL
+          WHEN a.status = 'present' OR a.status = 'late' THEN 'confirmed'
+          WHEN a.status = 'absent' OR a.status = 'excused' THEN 'declined'
+          ELSE 'selected'
+        END as status,
+        a.notes,
+        gl.selected_at,
+        a.checked_at as responded_at
+      FROM users u
+      LEFT JOIN game_lineups gl ON gl.user_id = u.id AND gl.event_id = ?
+      LEFT JOIN attendance a ON a.user_id = u.id AND a.event_id = ?
+      WHERE u.team_id = ? AND LOWER(u.role) = 'player'
+      ORDER BY u.surname, u.name
+    `, [eventId, eventId, teamId], callback);
+  };
+
   // get schedule by team id
   router.get('/teams/:id/schedule', (req, res) => {
     const teamId = req.params.id;
@@ -315,7 +371,7 @@ module.exports = (db) => {
         SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) as excused_count
       FROM attendance a
       INNER JOIN schedules s ON a.event_id = s.id
-      WHERE a.user_id = ?
+      WHERE a.user_id = ? AND LOWER(s.event_type) = 'practice'
     `;
     
     const params = [userId];
@@ -369,7 +425,9 @@ module.exports = (db) => {
           SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) as excused_count
         FROM users u
         LEFT JOIN attendance a ON u.id = a.user_id
-        LEFT JOIN schedules s ON a.event_id = s.id AND s.team_id = ? AND LOWER(s.event_type) = 'practice'
+          AND a.event_id IN (
+            SELECT id FROM schedules WHERE team_id = ? AND LOWER(event_type) = 'practice'
+          )
         WHERE u.team_id = ? AND LOWER(u.role) = 'player'
         GROUP BY u.id
         ORDER BY present_count DESC
@@ -402,6 +460,284 @@ module.exports = (db) => {
   });
 
   // ==================== END ATTENDANCE ROUTES ====================
+
+  // ==================== GAME LINEUP ROUTES ====================
+
+  router.get('/teams/:teamId/events/:eventId/lineup/full', (req, res) => {
+    const { teamId, eventId } = req.params;
+
+    getGameEvent(teamId, eventId, (eventErr, event) => {
+      if (eventErr) {
+        console.error('Error checking game event:', eventErr);
+        return res.status(500).json({ error: 'Datubāzes kļūda' });
+      }
+
+      if (event === null) {
+        return res.status(404).json({ error: 'Notikums nav atrasts' });
+      }
+
+      if (event === false) {
+        return res.status(400).json({ error: 'Sastāvu var veidot tikai spēlēm' });
+      }
+
+      fetchGameLineupRows(teamId, eventId, (lineupErr, rows) => {
+        if (lineupErr) {
+          console.error('Error fetching game lineup:', lineupErr);
+          return res.status(500).json({ error: 'Kļūda, ielādējot spēles sastāvu' });
+        }
+
+        res.json(rows);
+      });
+    });
+  });
+
+  router.get('/teams/:teamId/events/:eventId/lineup/suggested', (req, res) => {
+    const { teamId, eventId } = req.params;
+
+    getGameEvent(teamId, eventId, (eventErr, event) => {
+      if (eventErr) {
+        console.error('Error checking game event:', eventErr);
+        return res.status(500).json({ error: 'Datubāzes kļūda' });
+      }
+
+      if (event === null) {
+        return res.status(404).json({ error: 'Notikums nav atrasts' });
+      }
+
+      if (event === false) {
+        return res.status(400).json({ error: 'Sastāvu var veidot tikai spēlēm' });
+      }
+
+      const currentDateTime = `${event.event_date} ${event.event_time || '23:59'}`;
+
+      db.get(`
+        SELECT id
+        FROM schedules
+        WHERE team_id = ?
+          AND id != ?
+          AND LOWER(event_type) = 'game'
+          AND datetime(event_date || ' ' || COALESCE(NULLIF(event_time, ''), '23:59')) < datetime(?)
+          AND EXISTS (
+            SELECT 1
+            FROM game_lineups gl
+            WHERE gl.event_id = schedules.id
+          )
+        ORDER BY datetime(event_date || ' ' || COALESCE(NULLIF(event_time, ''), '23:59')) DESC, id DESC
+        LIMIT 1
+      `, [teamId, eventId, currentDateTime], (previousErr, previousGame) => {
+        if (previousErr) {
+          console.error('Error finding previous game lineup:', previousErr);
+          return res.status(500).json({ error: 'Kļūda, ielādējot iepriekšējo sastāvu' });
+        }
+
+        if (!previousGame) {
+          return res.json({ previousEventId: null, playerIds: [] });
+        }
+
+        db.all(`
+          SELECT user_id
+          FROM game_lineups
+          WHERE event_id = ?
+          ORDER BY selected_at ASC, id ASC
+        `, [previousGame.id], (lineupErr, rows) => {
+          if (lineupErr) {
+            console.error('Error loading previous game lineup:', lineupErr);
+            return res.status(500).json({ error: 'Kļūda, ielādējot iepriekšējo sastāvu' });
+          }
+
+          res.json({
+            previousEventId: previousGame.id,
+            playerIds: rows.map((row) => row.user_id)
+          });
+        });
+      });
+    });
+  });
+
+  router.post('/teams/:teamId/events/:eventId/lineup/bulk', (req, res) => {
+    const { teamId, eventId } = req.params;
+    const { playerIds } = req.body;
+
+    if (!Array.isArray(playerIds)) {
+      return res.status(400).json({ error: 'Sastāva spēlētājiem jābūt masīvam' });
+    }
+
+    const normalizedIds = [...new Set(playerIds.map(normalizePositiveInteger).filter(Boolean))];
+
+    getGameEvent(teamId, eventId, (eventErr, event) => {
+      if (eventErr) {
+        console.error('Error checking game event:', eventErr);
+        return res.status(500).json({ error: 'Datubāzes kļūda' });
+      }
+
+      if (event === null) {
+        return res.status(404).json({ error: 'Notikums nav atrasts' });
+      }
+
+      if (event === false) {
+        return res.status(400).json({ error: 'Sastāvu var veidot tikai spēlēm' });
+      }
+
+      const placeholders = normalizedIds.map(() => '?').join(',');
+      const validateSql = normalizedIds.length
+        ? `SELECT id FROM users WHERE team_id = ? AND LOWER(role) = 'player' AND id IN (${placeholders})`
+        : `SELECT id FROM users WHERE 1 = 0`;
+      const validateParams = normalizedIds.length ? [teamId, ...normalizedIds] : [];
+
+      db.all(validateSql, validateParams, (playerErr, validPlayers) => {
+        if (playerErr) {
+          console.error('Error validating lineup players:', playerErr);
+          return res.status(500).json({ error: 'Datubāzes kļūda' });
+        }
+
+        const validIds = validPlayers.map((player) => player.id);
+
+        if (validIds.length !== normalizedIds.length) {
+          return res.status(400).json({ error: 'Daži spēlētāji nepieder šai komandai' });
+        }
+
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION');
+
+          const deleteSql = validIds.length
+            ? `DELETE FROM game_lineups WHERE event_id = ? AND user_id NOT IN (${validIds.map(() => '?').join(',')})`
+            : `DELETE FROM game_lineups WHERE event_id = ?`;
+          const deleteParams = validIds.length ? [eventId, ...validIds] : [eventId];
+
+          db.run(deleteSql, deleteParams, (deleteErr) => {
+            if (deleteErr) {
+              db.run('ROLLBACK');
+              console.error('Error removing lineup players:', deleteErr);
+              return res.status(500).json({ error: 'Kļūda, saglabājot sastāvu' });
+            }
+
+            const deleteAttendanceSql = validIds.length
+              ? `DELETE FROM attendance WHERE event_id = ? AND user_id NOT IN (${validIds.map(() => '?').join(',')})`
+              : `DELETE FROM attendance WHERE event_id = ?`;
+            const deleteAttendanceParams = validIds.length ? [eventId, ...validIds] : [eventId];
+
+            db.run(deleteAttendanceSql, deleteAttendanceParams, (deleteAttendanceErr) => {
+              if (deleteAttendanceErr) {
+                console.error('Error removing lineup attendance:', deleteAttendanceErr);
+              }
+            });
+
+            const insertStmt = db.prepare(`
+              INSERT INTO game_lineups (event_id, user_id)
+              VALUES (?, ?)
+              ON CONFLICT(event_id, user_id) DO NOTHING
+            `);
+
+            let insertError = null;
+
+            validIds.forEach((playerId) => {
+              insertStmt.run([eventId, playerId], (insertErr) => {
+                if (insertErr && !insertError) {
+                  insertError = insertErr;
+                }
+              });
+            });
+
+            insertStmt.finalize((finalizeErr) => {
+              if (insertError || finalizeErr) {
+                db.run('ROLLBACK');
+                console.error('Error inserting lineup players:', insertError || finalizeErr);
+                return res.status(500).json({ error: 'Kļūda, saglabājot sastāvu' });
+              }
+
+              db.run('COMMIT', (commitErr) => {
+                if (commitErr) {
+                  console.error('Error committing lineup:', commitErr);
+                  return res.status(500).json({ error: 'Kļūda, saglabājot sastāvu' });
+                }
+
+                fetchGameLineupRows(teamId, eventId, (lineupErr, rows) => {
+                  if (lineupErr) {
+                    console.error('Error fetching saved lineup:', lineupErr);
+                    return res.status(500).json({ error: 'Kļūda, ielādējot spēles sastāvu' });
+                  }
+
+                  res.json({ success: true, selected: validIds.length, players: rows });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+
+  router.post('/teams/:teamId/events/:eventId/lineup/response', (req, res) => {
+    const { teamId, eventId } = req.params;
+    const { user_id, status, notes } = req.body;
+    const playerId = normalizePositiveInteger(user_id);
+    const validStatuses = new Set(['confirmed', 'declined']);
+
+    if (!playerId || !status) {
+      return res.status(400).json({ error: 'Lietotāja ID un statuss ir obligāti' });
+    }
+
+    if (!validStatuses.has(status)) {
+      return res.status(400).json({ error: 'Nederīgs sastāva statuss' });
+    }
+
+    getGameEvent(teamId, eventId, (eventErr, event) => {
+      if (eventErr) {
+        console.error('Error checking game event:', eventErr);
+        return res.status(500).json({ error: 'Datubāzes kļūda' });
+      }
+
+      if (event === null) {
+        return res.status(404).json({ error: 'Notikums nav atrasts' });
+      }
+
+      if (event === false) {
+        return res.status(400).json({ error: 'Sastāvu var veidot tikai spēlēm' });
+      }
+
+      db.get(`
+        SELECT gl.id
+        FROM game_lineups gl
+        INNER JOIN users u ON u.id = gl.user_id
+        WHERE gl.event_id = ? AND gl.user_id = ? AND u.team_id = ? AND LOWER(u.role) = 'player'
+      `, [eventId, playerId, teamId], (lineupErr, lineupEntry) => {
+        if (lineupErr) {
+          console.error('Error checking lineup entry:', lineupErr);
+          return res.status(500).json({ error: 'Datubāzes kļūda' });
+        }
+
+        if (!lineupEntry) {
+          return res.status(403).json({ error: 'Spēlētājs nav šīs spēles sastāvā' });
+        }
+
+        const attendanceStatus = status === 'confirmed' ? 'present' : 'excused';
+
+        db.run(`
+          INSERT INTO attendance (user_id, event_id, status, notes)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(user_id, event_id) DO UPDATE SET
+            status = excluded.status,
+            notes = excluded.notes,
+            checked_at = CURRENT_TIMESTAMP
+        `, [playerId, eventId, attendanceStatus, notes || null], function(updateErr) {
+          if (updateErr) {
+            console.error('Error saving lineup response:', updateErr);
+            return res.status(500).json({ error: 'Kļūda, saglabājot atbildi' });
+          }
+
+          res.json({
+            success: true,
+            user_id: playerId,
+            event_id: eventId,
+            status,
+            notes: notes || null
+          });
+        });
+      });
+    });
+  });
+
+  // ==================== END GAME LINEUP ROUTES ====================
 
    // Get team players
   router.get('/teams/:teamId/players', (req, res) => {
