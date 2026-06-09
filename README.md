@@ -16,7 +16,6 @@ TeamFlow is a web application for sports clubs and teams. It helps coaches, mana
 - Profile avatars and team logo upload
 - Admin panel for managing users and teams
 - Latvian and English UI translations
-- PWA support with install prompt and local HTTPS development mode
 
 ## Tech Stack
 
@@ -35,7 +34,7 @@ TeamFlow is a web application for sports clubs and teams. It helps coaches, mana
 |   |-- migrations/       # Database migration helpers
 |   `-- server.js         # Backend entry point
 |-- frontend/             # Vue 3 + Vite client
-|   |-- public/           # Manifest, service worker and PWA icons
+|   |-- public/           # Static frontend assets
 |   `-- src/              # Views, components, stores, router and locales
 |-- docker-compose.yml    # Local Docker setup
 |-- .env.example          # Example environment variables
@@ -120,17 +119,6 @@ npm run dev
 
 The frontend dev server proxies `/api` requests to the backend. By default it uses `http://127.0.0.1:3000`; override it with `VITE_API_PROXY_TARGET` when needed.
 
-## PWA HTTPS Mode
-
-For testing PWA installation on a local network, run the frontend with HTTPS:
-
-```bash
-cd frontend
-npm run dev:https
-```
-
-This command generates a self-signed certificate in `frontend/certs/` and starts Vite in HTTPS mode. OpenSSL must be installed on the machine.
-
 ## Useful Commands
 
 ```bash
@@ -146,7 +134,6 @@ npm run dev
 # Frontend
 cd frontend
 npm run dev
-npm run dev:https
 npm run build
 npm run preview
 ```
@@ -165,9 +152,3 @@ Main API groups:
 ## Database
 
 The backend uses SQLite. During development, the database file is stored at `backend/database.sqlite`. Required tables are created automatically when the backend starts, including users, teams, schedules, attendance, player statistics, chat rooms, messages, direct messages and password reset tokens.
-
-## Notes
-
-- The root `test` script is currently a placeholder; no automated test suite is configured yet.
-- For production, replace the default `JWT_SECRET` with a strong secret and configure real email credentials.
-- Local uploads and generated development certificates should be treated as environment-specific files.
